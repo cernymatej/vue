@@ -12,7 +12,9 @@ import {
   type SetupContext,
   createSetupContext,
   getCurrentInstance,
+  isInSSRComponentSetup,
   setCurrentInstance,
+  setInSSRSetupState,
   unsetCurrentInstance,
 } from './component'
 import type { EmitFn, EmitsOptions, ObjectEmitsOptions } from './componentEmits'
@@ -512,6 +514,7 @@ export function withAsyncContext(getAwaitable: () => any): [any, () => void] {
         `This is likely a bug.`,
     )
   }
+  const inSSRSetup = isInSSRComponentSetup
   let awaitable = getAwaitable()
   unsetCurrentInstance()
 
@@ -522,11 +525,13 @@ export function withAsyncContext(getAwaitable: () => any): [any, () => void] {
   const cleanup = () => {
     if (getCurrentInstance() !== ctx) ctx.scope.off()
     unsetCurrentInstance()
+    if (__SSR__) setInSSRSetupState(false)
   }
 
   if (isPromise(awaitable)) {
     awaitable = awaitable.catch(e => {
       setCurrentInstance(ctx)
+      if (__SSR__) setInSSRSetupState(inSSRSetup)
       // Defer cleanup so the async function's catch continuation
       // still runs with the restored instance.
       Promise.resolve().then(() => Promise.resolve().then(cleanup))
@@ -537,6 +542,7 @@ export function withAsyncContext(getAwaitable: () => any): [any, () => void] {
     awaitable,
     () => {
       setCurrentInstance(ctx)
+      if (__SSR__) setInSSRSetupState(inSSRSetup)
       // Keep instance for the current continuation, then cleanup.
       Promise.resolve().then(cleanup)
     },

@@ -6,6 +6,7 @@ import {
   ref,
   watch,
   watchEffect,
+  withAsyncContext,
 } from 'vue'
 import { type SSRContext, renderToString } from '../src'
 
@@ -118,6 +119,32 @@ describe('ssr: watch', () => {
     expect(html).toMatch('start')
     await nextTick()
     expect(msg).toBe('start')
+  })
+
+  test('should restore isInSSRComponentSetup after await in async setup', async () => {
+    const App = defineComponent({
+      async setup() {
+        const count = ref(0)
+        const watcherFired = ref(false)
+
+        let __temp: any, __restore: any
+        ;[__temp, __restore] = withAsyncContext(() => Promise.resolve())
+        __temp = await __temp
+        __restore()
+
+        watch(count, () => {
+          watcherFired.value = true
+        })
+
+        count.value++
+
+        return () => h('div', null, `Watcher fired: ${watcherFired.value}`)
+      },
+    })
+
+    const app = createSSRApp(App)
+    const html = await renderToString(app)
+    expect(html).toBe('<div>Watcher fired: false</div>')
   })
 })
 
